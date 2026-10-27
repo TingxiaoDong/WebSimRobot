@@ -30,3 +30,6 @@ npm-debug.log*
 
 # Franka 演示专用依赖
 .franka/
+
+# Franka 网页独立环境
+.franka-web-venv/
