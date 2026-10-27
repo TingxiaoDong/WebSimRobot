@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
+from .franka import router as franka_router
 from .adapters import MCPAdapter, MockAdapter, RobotAdapter
 from .config import Settings
 from .controller import ControlError, RobotController
@@ -62,6 +63,7 @@ def create_app(
 
     app = FastAPI(title="Robot Control API", lifespan=lifespan)
     app.state.controller = controller
+    app.include_router(franka_router)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[

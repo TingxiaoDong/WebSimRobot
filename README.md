@@ -66,3 +66,27 @@ ROBOT_CONTROL_MODE=mock ./start.sh
 如果项目目录已有 `.env`，启动脚本加载其中配置；请将文件中的 `ROBOT_CONTROL_MODE` 改成 `mock` 再启动。Mock 不连接仿真器。`.env` 是纯文本键值配置，不支持引号、变量展开或行尾注释。
 
 手动重装及重新构建：`./install.sh`。运行后端测试：`.venv/bin/python -m pytest`。
+
+## Franka 机械臂最小演示
+
+此演示使用单独的 Isaac Lab 进程和 Franka Panda 资产，不使用 Unitree DDS。需要在支持 Isaac Sim 的机器上先安装兼容版本的 Isaac Lab，并确保其资产可以加载。将本项目放在同一台机器上，在 Isaac Lab 仓库目录运行（将路径替换为本项目的绝对路径）：
+
+```bash
+./isaaclab.sh -p /项目绝对路径/scripts/franka_demo.py
+```
+
+另开终端启动本项目（仅体验 Franka 时可使用 `ROBOT_CONTROL_MODE=mock ./start.sh`；若已有 `.env`，请将其中模式设为 `mock`）。打开网页，选择顶部“Franka 机械臂”，待状态显示已连接后点击“执行摆动”。机械臂第一个关节会摆动两次并回到初始位置。动作是否完成应在 Isaac Sim 窗口中确认；网页仅确认指令已入队。网页中的画面面板仍需要按照上面的推流说明单独配置。
+
+演示服务默认仅监听仿真机器的 `127.0.0.1:8765`。若网页后端和仿真运行在不同机器，可在后端机器通过 SSH 建立本地端口转发：`ssh -L 8765:127.0.0.1:8765 用户名@仿真主机`，并保持连接。若更改演示脚本的 `--port`，也需设置后端环境变量 `FRANKA_DEMO_URL`，例如 `http://127.0.0.1:8766`。此演示只控制仿真，不连接真实机械臂。
+
+### Ubuntu 一键安装并启动
+
+在 Ubuntu 22.04/24.04 x86_64 图形桌面上，先安装可正常运行的 NVIDIA 驱动，并确认 `nvidia-smi` 可用。准备受支持的 RTX 显卡、至少 32 GB 内存、16 GB 显存、50 GB 可用磁盘空间和网络连接。然后在本项目目录运行：
+
+```bash
+./start-franka-ubuntu.sh
+```
+
+首次运行需要 sudo 安装系统依赖，并下载 Node.js、Python 3.11、Isaac Sim 5.1 和固定版本 Isaac Lab 2.3.2；Isaac Sim 首次启动可能要求接受 NVIDIA 许可。安装目录默认是项目下的 `.franka`，不会覆盖 Unitree 环境。安装完成后会启动仿真窗口和本地网页，打开 <http://127.0.0.1:8000> 并切换到 Franka 页面。后续再次运行同一命令即可启动；关闭仿真窗口或按 Ctrl+C 会停止网页服务。
+
+可用 `FRANKA_INSTALL_DIR=/其他目录 ./start-franka-ubuntu.sh` 指定安装目录，用 `FRANKA_WEB_PORT=8001 ./start-franka-ubuntu.sh` 更改网页端口。默认在本机仿真窗口看画面，网页画面需要另行配置上文介绍的推流。安装采用 [Isaac Lab 官方 pip 安装流程](https://isaac-sim.github.io/IsaacLab/v2.3.1/source/setup/installation/pip_installation.html)；依赖下载可能需要较长时间。
