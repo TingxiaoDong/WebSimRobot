@@ -72,6 +72,11 @@ class RobotController:
         async with self._lock:
             if not self._session_active_locked:
                 return
+            if self.adapter.mode == "sdk":
+                state = await self._adapter_state_locked()
+                if not state.get("simulation_connected") or not state.get("wholebody"):
+                    await self._fail_locked(RuntimeError("仿真状态超时或 Wholebody 任务不可用"))
+                    return
             command = self._last_command
             command_active = command is not None and (
                 abs(command.x_vel) > 1e-9
@@ -225,6 +230,8 @@ class RobotController:
     async def _fail_locked(self, exc: Exception) -> None:
         self._last_error = str(exc)
         await self._stop_locked()
+        self._session_id = None
+        self._sequence = -1
 
     async def disconnect(self) -> RobotState:
         async with self._lock:

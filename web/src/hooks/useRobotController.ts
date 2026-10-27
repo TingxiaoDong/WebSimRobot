@@ -73,7 +73,7 @@ export function useRobotController() {
     stateRef.current = next
     setState(next)
     setBackendOnline(true)
-    if (!next.connected) {
+    if (!next.connected || !next.simulation_connected || (!next.session_active && sessionRef.current !== null)) {
       sessionRef.current = null
       setSessionReady(false)
     }
@@ -95,12 +95,17 @@ export function useRobotController() {
       setStopping(true)
       try {
         const result = await robotApi.stop(sessionRef.current ?? undefined)
-        if (robotApi.isRobotState(result)) applyState(result)
+        if (robotApi.isRobotState(result)) {
+          applyState(result)
+          if (result.last_error?.startsWith('Stop failed:')) throw new Error(result.last_error)
+        }
         if (withLog) addLog('warning', '已发送软件停止指令')
+        return true
       } catch (error) {
         const message = `停止指令发送失败：${errorMessage(error)}`
         setLocalError(message)
         addLog('error', message)
+        return false
       } finally {
         setStopping(false)
       }
@@ -124,8 +129,8 @@ export function useRobotController() {
     const y = Number(active.has('left')) - Number(active.has('right'))
     const yaw = Number(active.has('rotateLeft')) - Number(active.has('rotateRight'))
     return {
-      x_vel: x * linearSpeedRef.current,
-      y_vel: y * linearSpeedRef.current,
+      x_vel: x < 0 ? -Math.min(linearSpeedRef.current, 0.6) : x * linearSpeedRef.current,
+      y_vel: y * Math.min(linearSpeedRef.current, 0.5),
       yaw_vel: yaw * angularSpeedRef.current,
       height: active.has('crouch') ? 0.3 : 0.8,
     }
@@ -193,7 +198,7 @@ export function useRobotController() {
       setSessionReady(true)
       const sessionState = { ...connectedState, session_active: true }
       applyState(sessionState)
-      addLog('success', `仿真连接成功，控制会话 ${session.session_id.slice(0, 8)} 已建立`)
+      addLog('success', `${connectedState.mode === 'sdk' ? 'SDK 已收到仿真状态' : '仿真已连接'}，控制会话 ${session.session_id.slice(0, 8)} 已建立`)
     } catch (error) {
       handleApiError(error, '连接失败')
     } finally {
@@ -219,10 +224,14 @@ export function useRobotController() {
 
   const reset = useCallback(async () => {
     setBusy('reset')
-    await sendStop(false)
+    const stopped = await sendStop(false)
+    if (!stopped) {
+      setBusy(null)
+      return
+    }
     try {
       const result = await robotApi.reset(1)
-      addLog('success', result.message || '仿真复位完成（类别 1）')
+      addLog('info', result.message || '已发送物体复位请求')
     } catch (error) {
       handleApiError(error, '仿真复位失败')
     } finally {
@@ -233,10 +242,14 @@ export function useRobotController() {
   const setGripper = useCallback(
     async (position: number) => {
       setBusy('gripper')
-      await sendStop(false)
+      const stopped = await sendStop(false)
+      if (!stopped) {
+        setBusy(null)
+        return
+      }
       try {
         await robotApi.gripper(position)
-        addLog('success', position >= 0.5 ? '夹爪已张开' : '夹爪已闭合')
+        addLog('info', position >= 0.5 ? '已发送双侧夹爪张开请求' : '已发送双侧夹爪闭合请求')
       } catch (error) {
         handleApiError(error, '夹爪控制失败')
       } finally {

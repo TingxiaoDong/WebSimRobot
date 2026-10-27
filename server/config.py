@@ -13,8 +13,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    robot_control_mode: Literal["mock", "mcp"] = "mock"
-    mcp_transport: Literal["stdio", "http"] = "stdio"
+    robot_control_mode: Literal["mock", "sdk", "mcp"] = "mock"
+    unitree_dds_domain: int = 1
+    unitree_network_interface: str | None = None
+    unitree_state_timeout: float = 3.0
+    mcp_transport: Literal["stdio", "http", "streamable_http"] = "stdio"
+    mcp_auto_connect: bool = False
     mcp_server_command: str | None = None
     mcp_server_args: str = "[]"
     mcp_server_cwd: str | None = None

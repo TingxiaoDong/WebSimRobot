@@ -14,6 +14,7 @@ from starlette.staticfiles import StaticFiles
 from .adapters import MCPAdapter, MockAdapter, RobotAdapter
 from .config import Settings
 from .controller import ControlError, RobotController
+from .unitree_adapter import UnitreeAdapter
 from .models import (
     GripperRequest,
     HeartbeatRequest,
@@ -42,13 +43,19 @@ def create_app(
     static_dir: Path | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
-    adapter = adapter or (MockAdapter() if settings.robot_control_mode == "mock" else MCPAdapter(settings))
+    adapter = adapter or (MockAdapter() if settings.robot_control_mode == "mock" else UnitreeAdapter(settings) if settings.robot_control_mode == "sdk" else MCPAdapter(settings))
     controller = RobotController(adapter)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         await controller.start()
         try:
+            if settings.robot_control_mode == "mcp" and settings.mcp_auto_connect:
+                try:
+                    await controller.connect()
+                    logging.info("MCP 自动连接成功")
+                except ControlError:
+                    logging.exception("MCP 自动连接失败；可在页面重试")
             yield
         finally:
             await controller.shutdown()

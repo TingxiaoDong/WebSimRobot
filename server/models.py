@@ -35,7 +35,7 @@ class GripperRequest(BaseModel):
 class RobotState(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    mode: Literal["mock", "mcp"]
+    mode: Literal["mock", "sdk", "mcp"]
     connected: bool
     mcp_connected: bool
     simulation_connected: bool

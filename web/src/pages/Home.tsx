@@ -34,6 +34,7 @@ import {
 import { ControlButton } from '@/components/console/ControlButton'
 import { Panel } from '@/components/console/Panel'
 import { StatusItem } from '@/components/console/StatusItem'
+import { SimulationViewer } from '@/components/console/SimulationViewer'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,7 +55,7 @@ import type { ControlAction, LogLevel } from '@/types/robot'
 
 const channelLabels = {
   connecting: '正在连接',
-  websocket: 'WebSocket 实时',
+  websocket: '页面实时更新',
   polling: '1 秒轮询降级',
   offline: '通道已断开',
 }
@@ -89,10 +90,12 @@ export default function Home() {
 
   const controlHint = !state.connected
     ? '请先建立仿真连接'
-    : !controller.sessionReady
-      ? '控制会话尚未建立'
-      : !state.controllable
-        ? '后端当前不允许运动控制'
+    : !state.simulation_connected
+      ? '仿真状态已超时，请检查仿真器和 DDS'
+      : !controller.sessionReady
+        ? state.session_active ? '其他页面正在使用控制会话' : '请获取控制会话'
+        : !state.controllable
+          ? '后端当前不允许运动控制'
         : !state.wholebody
           ? '当前机器人未启用全身控制'
           : '按住控制，松开立即停止'
@@ -136,6 +139,11 @@ export default function Home() {
                 {state.mode.toUpperCase()}
               </span>
             </div>
+            {state.connected && !controller.sessionReady && (
+              <Button type="button" disabled={isBusy || !state.controllable || state.session_active} onClick={controller.connect}>
+                获取控制会话
+              </Button>
+            )}
             <Button
               type="button"
               disabled={isBusy}
@@ -167,7 +175,7 @@ export default function Home() {
             <span>
               {state.mode === 'mock'
                 ? '当前为 Mock 模式，未连接真实仿真；界面数据仅用于联调。'
-                : '当前为 MCP 模式，控制指令将通过远程 MCP 服务转发。'}
+                : state.mode === 'sdk' ? 'SDK 通过 DDS 向仿真器发送控制指令，请在仿真画面确认动作。' : '当前为 MCP 模式，控制指令将通过 MCP 服务转发。'}
             </span>
           </div>
           <div className="flex items-center gap-2 pl-[26px] text-red-300/85 sm:pl-0">
@@ -183,9 +191,9 @@ export default function Home() {
             status={controller.backendOnline ? 'online' : 'offline'}
           />
           <StatusItem
-            label="MCP 链路"
-            detail={state.mode === 'mock' ? 'Mock 模式未启用' : state.mcp_connected ? 'MCP 已连接' : 'MCP 未连接'}
-            status={state.mode === 'mock' ? 'idle' : state.mcp_connected ? 'online' : 'offline'}
+            label="控制链路"
+            detail={state.mode === 'mock' ? 'Mock 模式' : state.mode === 'sdk' ? (state.simulation_connected ? '收到 DDS 仿真状态' : state.connected ? '仿真状态已超时' : '等待 SDK 连接') : (state.mcp_connected ? 'MCP 已连接' : 'MCP 未连接')}
+            status={state.mode === 'mock' ? 'idle' : (state.mode === 'sdk' ? state.simulation_connected : state.mcp_connected) ? 'online' : 'offline'}
           />
           <StatusItem
             label="仿真环境"
@@ -194,15 +202,17 @@ export default function Home() {
           />
           <StatusItem
             label="控制会话"
-            detail={controller.sessionReady ? '会话已激活' : '无活动会话'}
-            status={controller.sessionReady ? 'online' : 'idle'}
+            detail={controller.sessionReady ? '本页面可控制' : state.session_active ? '其他页面使用中' : '无活动会话'}
+            status={controller.sessionReady ? 'online' : state.session_active ? 'warning' : 'idle'}
           />
           <StatusItem
-            label="状态通道"
+            label="页面状态更新"
             detail={channelLabels[controller.stateChannel]}
             status={controller.stateChannel === 'websocket' ? 'online' : controller.stateChannel === 'polling' ? 'warning' : 'offline'}
           />
         </div>
+
+        <SimulationViewer />
 
         <div className="grid items-start gap-4 xl:grid-cols-12">
           <Panel
@@ -280,13 +290,14 @@ export default function Home() {
                 <Slider
                   aria-label="移动速度档位"
                   min={0.1}
-                  max={1.5}
+                  max={1}
                   step={0.1}
                   value={[controller.linearSpeed]}
                   onValueChange={([value]) => controller.changeLinearSpeed(value)}
                   className="[&_[data-slot=slider-range]]:bg-cyan-400 [&_[data-slot=slider-thumb]]:size-3.5 [&_[data-slot=slider-thumb]]:border-cyan-300"
                 />
-                <div className="mt-2 flex justify-between font-mono text-[9px] text-slate-600"><span>0.1 低速</span><span>1.5 高速</span></div>
+                <div className="mt-2 flex justify-between font-mono text-[9px] text-slate-600"><span>0.1 低速</span><span>1.0 高速</span></div>
+                <p className="mt-1 text-[10px] text-slate-600">后退限速 0.6，横移限速 0.5 m/s</p>
               </div>
               <div>
                 <div className="mb-3 flex items-center justify-between text-xs">
@@ -296,13 +307,13 @@ export default function Home() {
                 <Slider
                   aria-label="旋转速度档位"
                   min={0.2}
-                  max={2}
+                  max={1.5}
                   step={0.1}
                   value={[controller.angularSpeed]}
                   onValueChange={([value]) => controller.changeAngularSpeed(value)}
                   className="[&_[data-slot=slider-range]]:bg-cyan-400 [&_[data-slot=slider-thumb]]:size-3.5 [&_[data-slot=slider-thumb]]:border-cyan-300"
                 />
-                <div className="mt-2 flex justify-between font-mono text-[9px] text-slate-600"><span>0.2 低速</span><span>2.0 高速</span></div>
+                <div className="mt-2 flex justify-between font-mono text-[9px] text-slate-600"><span>0.2 低速</span><span>1.5 高速</span></div>
               </div>
             </div>
           </Panel>
@@ -414,21 +425,21 @@ export default function Home() {
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-medium text-slate-300">复位仿真</p>
-                  <p className="mt-1 text-[10px] text-slate-600">停止当前运动并恢复初始状态</p>
+                  <p className="text-xs font-medium text-slate-300">复位物体</p>
+                  <p className="mt-1 text-[10px] text-slate-600">停止当前运动并请求复位物体</p>
                 </div>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button type="button" variant="outline" size="sm" disabled={!state.connected || isBusy} className="border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white">
+                    <Button type="button" variant="outline" size="sm" disabled={!state.simulation_connected || !state.capabilities.includes('reset') || isBusy} className="border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white">
                       {busy === 'reset' ? <LoaderCircle className="animate-spin" /> : <RefreshCcw />}
                       复位
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent className="border-slate-700 bg-[#11161d] text-slate-200">
                     <AlertDialogHeader>
-                      <AlertDialogTitle>确认复位仿真？</AlertDialogTitle>
+                      <AlertDialogTitle>确认复位物体？</AlertDialogTitle>
                       <AlertDialogDescription className="text-slate-400">
-                        系统将先发送软件停止指令，再执行类别 0 的仿真复位。当前任务进度与机器人姿态可能丢失。
+                        系统将先发送软件停止指令，再发送类别 1 的复位请求。物体位置可能发生变化。
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -444,15 +455,15 @@ export default function Home() {
                   <div className="mb-3 flex items-center gap-2">
                     <Grip className="size-4 text-slate-500" />
                     <div>
-                      <p className="text-xs font-medium text-slate-300">夹爪控制</p>
-                      <p className="mt-1 text-[10px] text-slate-600">执行前自动停止机器人运动</p>
+                      <p className="text-xs font-medium text-slate-300">{state.mode === 'sdk' ? '双侧 Dex1 夹爪' : '夹爪控制'}</p>
+                      <p className="mt-1 text-[10px] text-slate-600">执行前发送停止指令</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <Button type="button" variant="outline" disabled={!state.connected || isBusy} onClick={() => controller.setGripper(1)} className="border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white">
+                    <Button type="button" variant="outline" disabled={!state.simulation_connected || isBusy} onClick={() => controller.setGripper(1)} className="border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white">
                       {busy === 'gripper' ? <LoaderCircle className="animate-spin" /> : <Hand />}张开夹爪
                     </Button>
-                    <Button type="button" variant="outline" disabled={!state.connected || isBusy} onClick={() => controller.setGripper(0)} className="border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white">
+                    <Button type="button" variant="outline" disabled={!state.simulation_connected || isBusy} onClick={() => controller.setGripper(0)} className="border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-800 hover:text-white">
                       <Grip />闭合夹爪
                     </Button>
                   </div>
@@ -460,7 +471,7 @@ export default function Home() {
               )}
 
               <div className="rounded-md border border-slate-800 bg-slate-950/30 p-3 text-[10px] leading-relaxed text-slate-600">
-                复位与夹爪操作均通过当前后端执行。Mock 模式仅返回模拟结果，不会驱动物理设备。
+                {state.mode === 'sdk' ? '复位和夹爪操作发送后，请在仿真画面确认结果。' : '复位与夹爪操作均通过当前后端执行。'}
               </div>
             </div>
           </Panel>
@@ -472,7 +483,7 @@ export default function Home() {
             <span>Z/X 旋转</span><span>C 下蹲</span><span>空格 / Esc 停止</span>
           </div>
           <div className="flex items-center gap-4 font-mono">
-            <span className="flex items-center gap-1.5"><Server className="size-3" />127.0.0.1:8000</span>
+            <span className="flex items-center gap-1.5"><Server className="size-3" />{window.location.host}</span>
             <span className="flex items-center gap-1.5"><Cpu className="size-3" />{state.mode.toUpperCase()}</span>
             <span className="flex items-center gap-1.5"><Wifi className="size-3" />{controller.stateChannel === 'websocket' ? 'LIVE' : 'FALLBACK'}</span>
           </div>

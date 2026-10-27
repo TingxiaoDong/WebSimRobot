@@ -1,4 +1,4 @@
-export type BackendMode = 'mock' | 'mcp'
+export type BackendMode = 'mock' | 'sdk' | 'mcp'
 
 export interface VelocityCommand {
   x_vel: number

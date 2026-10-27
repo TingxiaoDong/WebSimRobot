@@ -39,6 +39,10 @@ fi
 
 log "安装或更新后端依赖。"
 .venv/bin/python -m pip install -r requirements.txt
+if [[ "${INSTALL_UNITREE_SDK:-0}" == 1 ]]; then
+  log "安装 Unitree SDK2 Python（需要 Cyclone DDS 0.10.2）。"
+  bash "$ROOT_DIR/install-unitree-sdk.sh"
+fi
 
 if [[ -f web/package-lock.json ]]; then
   log "检测到 package-lock.json，使用 npm ci 安装前端依赖。"

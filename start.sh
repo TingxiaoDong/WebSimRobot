@@ -38,7 +38,18 @@ fi
 
 export HOST="${HOST:-127.0.0.1}"
 export PORT="${PORT:-8000}"
-export ROBOT_CONTROL_MODE="${ROBOT_CONTROL_MODE:-mock}"
+export ROBOT_CONTROL_MODE="${ROBOT_CONTROL_MODE:-sdk}"
+if [[ -f "$ROOT_DIR/.venv/cyclonedds/lib/cmake/CycloneDDS/CycloneDDSConfig.cmake" && -z "${CYCLONEDDS_HOME:-}" ]]; then
+  export CYCLONEDDS_HOME="$ROOT_DIR/.venv/cyclonedds"
+fi
+if [[ "$ROBOT_CONTROL_MODE" == sdk ]] && ! .venv/bin/python -c 'import unitree_sdk2py.core.channel' >/dev/null 2>&1; then
+  log "安装 Unitree SDK2 Python。"
+  bash "$ROOT_DIR/install-unitree-sdk.sh" || fail "SDK 安装失败，请检查上方日志及 README 中的安装说明。"
+  if [[ -f "$ROOT_DIR/.venv/cyclonedds/lib/cmake/CycloneDDS/CycloneDDSConfig.cmake" && -z "${CYCLONEDDS_HOME:-}" ]]; then
+    export CYCLONEDDS_HOME="$ROOT_DIR/.venv/cyclonedds"
+  fi
+  .venv/bin/python -c 'import unitree_sdk2py.core.channel' || fail "SDK 或 Cyclone DDS 不可用，请检查安装日志。"
+fi
 
 [[ "$PORT" =~ ^[0-9]+$ ]] || fail "PORT 必须是 1 到 65535 之间的整数，当前为：$PORT"
 (( PORT >= 1 && PORT <= 65535 )) || fail "PORT 必须是 1 到 65535 之间的整数，当前为：$PORT"

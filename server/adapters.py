@@ -140,9 +140,15 @@ class MCPAdapter(RobotAdapter):
                 if not self.settings.mcp_http_url:
                     raise ValueError("MCP_HTTP_URL is required for HTTP transport")
                 from mcp.client.streamable_http import streamable_http_client
+                import httpx
+                from urllib.parse import urlsplit
 
+                host = urlsplit(self.settings.mcp_http_url).hostname
+                http_client = None
+                if host in {"127.0.0.1", "localhost", "::1"}:
+                    http_client = await self._stack.enter_async_context(httpx.AsyncClient(trust_env=False))
                 read, write, _ = await self._stack.enter_async_context(
-                    streamable_http_client(self.settings.mcp_http_url)
+                    streamable_http_client(self.settings.mcp_http_url, http_client=http_client)
                 )
             self._session = await self._stack.enter_async_context(ClientSession(read, write))
             await self._session.initialize()
