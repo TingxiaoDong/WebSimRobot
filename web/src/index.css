@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 216 29% 6%;
+    --foreground: 210 20% 92%;
+    --card: 215 24% 9%;
+    --card-foreground: 210 20% 92%;
+    --popover: 215 24% 9%;
+    --popover-foreground: 210 20% 92%;
+    --primary: 187 85% 53%;
+    --primary-foreground: 222 47% 7%;
+    --secondary: 217 19% 16%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 217 19% 16%;
+    --muted-foreground: 215 14% 55%;
+    --accent: 217 19% 18%;
+    --accent-foreground: 210 20% 96%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 20% 19%;
+    --input: 217 20% 22%;
+    --ring: 187 85% 53%;
+    --radius: 0.5rem;
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    min-width: 320px;
+    background: #0b0f14;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    font-family: Inter, "SF Pro Text", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  button,
+  input {
+    font: inherit;
+  }
+
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::selection {
+    background: rgba(34, 211, 238, 0.22);
+    color: #e2e8f0;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+  }
+}
